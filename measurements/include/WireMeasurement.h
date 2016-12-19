@@ -95,7 +95,7 @@ class WireMeasurement : public AbsMeasurement {
  protected:
 
   double maxDistance_;
-  signed char leftRight_;
+  int leftRight_;
 
  public:
 

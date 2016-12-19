@@ -14,6 +14,7 @@
 #include "ProlateSpacepointMeasurement.h"
 #include "SpacepointMeasurement.h"
 #include "WireMeasurement.h"
+#include "WireMeasurementNew.h"
 #include "WirePointMeasurement.h"
 #include "AbsTrackRep.h"
 #include "ConstField.h"
@@ -195,11 +196,23 @@ void EventDisplay::addEvent(const Track* tr) {
   events_.push_back(vec);
 }
 
+void EventDisplay::addTrack(const Track* tr)
+{
+  if (events_.size()==0)
+    events_.push_back(new std::vector<Track*>);
+  events_.back()->push_back(new Track(*tr));
+}
+
+void EventDisplay::resetEvent()
+{
+  if (events_.size()==0) return;
+  for(unsigned int j = 0; j < events_.back()->size(); j++) 
+    delete  events_.back()->at(j);
+  events_.back()->clear();
+}
 
 void EventDisplay::next(unsigned int stp) {
-
   gotoEvent(eventId_ + stp);
-
 }
 
 void EventDisplay::prev(unsigned int stp) {
@@ -510,7 +523,7 @@ void EventDisplay::drawEvent(unsigned int id, bool resetCam) {
       bool planar_hit = (dynamic_cast<const PlanarMeasurement*>(m) != NULL);
       bool planar_pixel_hit = planar_hit && hit_coords_dim == 2;
       bool space_hit = (dynamic_cast<const SpacepointMeasurement*>(m) != NULL);
-      bool wire_hit = m && m->isLeftRightMeasurement();
+      bool wire_hit = (dynamic_cast<const WireMeasurement*>(m) != NULL)||(dynamic_cast<const WireMeasurementNew*>(m) != NULL);
       bool wirepoint_hit = wire_hit &&  (dynamic_cast<const WirePointMeasurement*>(m) != NULL);
       if (!full_hit && !planar_hit && !planar_pixel_hit && !space_hit && !wire_hit && !wirepoint_hit) {
         std::cout << "Track " << i << ", Hit " << j << ": Unknown measurement type: skipping hit!" << std::endl;
@@ -1192,205 +1205,186 @@ void EventDisplay::makeLines(const StateOnPlane* prevState, const StateOnPlane* 
 }
 
 
-void EventDisplay::makeGui() {
+void EventDisplay::makeGui(bool navButtons) {
 
   TEveBrowser* browser = gEve->GetBrowser();
-  browser->StartEmbedding(TRootBrowser::kLeft);
 
-  TGMainFrame* frmMain = new TGMainFrame(gClient->GetRoot(), 1000, 600);
+  browser->StartEmbedding(TRootBrowser::kLeft);
+  TGMainFrame *frmMain = new TGMainFrame(gClient->GetRoot(), 1000, 600);
   frmMain->SetWindowName("XX GUI");
   frmMain->SetCleanup(kDeepCleanup);
 
   TGLabel* lbl = 0;
   TGTextButton* tb = 0;
   EventDisplay*  fh = EventDisplay::getInstance();
+  TGHorizontalFrame* hf;
+  if (navButtons)
+    {
+      hf = new TGHorizontalFrame(frmMain); 
+      // evt number entry
+      lbl = new TGLabel(hf, "Go to event: ");
+      hf->AddFrame(lbl);
+      guiEvent = new TGNumberEntry(hf, 0, 9,999, TGNumberFormat::kNESInteger,
+				   TGNumberFormat::kNEANonNegative,
+				   TGNumberFormat::kNELLimitMinMax,
+				   0, 99999);
+      hf->AddFrame(guiEvent);
+      guiEvent->Connect("ValueSet(Long_t)", "genfit::EventDisplay", fh, "guiGoto()");
+      
+      // redraw button
+      tb = new TGTextButton(hf, "Redraw Event");
+      hf->AddFrame(tb);
+      tb->Connect("Clicked()", "genfit::EventDisplay", fh, "guiGoto()");
+      frmMain->AddFrame(hf);
+    }
 
-  TGHorizontalFrame* hf = new TGHorizontalFrame(frmMain); {
-    // evt number entry
-    lbl = new TGLabel(hf, "Go to event: ");
-    hf->AddFrame(lbl);
-    guiEvent = new TGNumberEntry(hf, 0, 9,999, TGNumberFormat::kNESInteger,
-                          TGNumberFormat::kNEANonNegative,
-                          TGNumberFormat::kNELLimitMinMax,
-                          0, 99999);
-    hf->AddFrame(guiEvent);
-    guiEvent->Connect("ValueSet(Long_t)", "genfit::EventDisplay", fh, "guiGoto()");
-
-    // redraw button
-    tb = new TGTextButton(hf, "Redraw Event");
-    hf->AddFrame(tb);
-    tb->Connect("Clicked()", "genfit::EventDisplay", fh, "guiGoto()");
-  }
-  frmMain->AddFrame(hf);
 
   // draw options
-  hf = new TGHorizontalFrame(frmMain); {
-    lbl = new TGLabel(hf, "\n Draw Options");
-    hf->AddFrame(lbl);
-  }
+  hf = new TGHorizontalFrame(frmMain); 
+  lbl = new TGLabel(hf, "\n Draw Options");
+  hf->AddFrame(lbl);  
   frmMain->AddFrame(hf);
 
-  hf = new TGHorizontalFrame(frmMain); {
-    guiDrawGeometry_ =  new TGCheckButton(hf, "Draw geometry");
-    if(drawGeometry_) guiDrawGeometry_->Toggle();
-    hf->AddFrame(guiDrawGeometry_);
-    guiDrawGeometry_->Connect("Toggled(Bool_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
-  }
+  hf = new TGHorizontalFrame(frmMain); 
+  guiDrawGeometry_ =  new TGCheckButton(hf, "Draw geometry");
+  if(drawGeometry_) guiDrawGeometry_->Toggle();
+  hf->AddFrame(guiDrawGeometry_);
+  guiDrawGeometry_->Connect("Toggled(Bool_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
   frmMain->AddFrame(hf);
 
-  hf = new TGHorizontalFrame(frmMain); {
-    guiDrawDetectors_ =  new TGCheckButton(hf, "Draw detectors");
-    if(drawDetectors_) guiDrawDetectors_->Toggle();
-    hf->AddFrame(guiDrawDetectors_);
-    guiDrawDetectors_->Connect("Toggled(Bool_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
-  }
+  hf = new TGHorizontalFrame(frmMain); 
+  guiDrawDetectors_ =  new TGCheckButton(hf, "Draw detectors");
+  if(drawDetectors_) guiDrawDetectors_->Toggle();
+  hf->AddFrame(guiDrawDetectors_);
+  guiDrawDetectors_->Connect("Toggled(Bool_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
   frmMain->AddFrame(hf);
 
-  hf = new TGHorizontalFrame(frmMain); {
-    guiDrawHits_ =  new TGCheckButton(hf, "Draw hits");
-    if(drawHits_) guiDrawHits_->Toggle();
-    hf->AddFrame(guiDrawHits_);
-    guiDrawHits_->Connect("Toggled(Bool_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
-  }
+  hf = new TGHorizontalFrame(frmMain); 
+  guiDrawHits_ =  new TGCheckButton(hf, "Draw hits");
+  if(drawHits_) guiDrawHits_->Toggle();
+  hf->AddFrame(guiDrawHits_);
+  guiDrawHits_->Connect("Toggled(Bool_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
   frmMain->AddFrame(hf);
 
-
-
-  hf = new TGHorizontalFrame(frmMain); {
-    guiDrawPlanes_ =  new TGCheckButton(hf, "Draw planes");
-    if(drawPlanes_) guiDrawPlanes_->Toggle();
-    hf->AddFrame(guiDrawPlanes_);
-    guiDrawPlanes_->Connect("Toggled(Bool_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
-  }
+  hf = new TGHorizontalFrame(frmMain); 
+  guiDrawPlanes_ =  new TGCheckButton(hf, "Draw planes");
+  if(drawPlanes_) guiDrawPlanes_->Toggle();
+  hf->AddFrame(guiDrawPlanes_);
+  guiDrawPlanes_->Connect("Toggled(Bool_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
   frmMain->AddFrame(hf);
 
-  hf = new TGHorizontalFrame(frmMain); {
-    guiDrawTrackMarkers_ =  new TGCheckButton(hf, "Draw track markers");
-    if(drawTrackMarkers_) guiDrawTrackMarkers_->Toggle();
-    hf->AddFrame(guiDrawTrackMarkers_);
-    guiDrawTrackMarkers_->Connect("Toggled(Bool_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
-  }
+  hf = new TGHorizontalFrame(frmMain); 
+  guiDrawTrackMarkers_ =  new TGCheckButton(hf, "Draw track markers");
+  if(drawTrackMarkers_) guiDrawTrackMarkers_->Toggle();
+  hf->AddFrame(guiDrawTrackMarkers_);
+  guiDrawTrackMarkers_->Connect("Toggled(Bool_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
   frmMain->AddFrame(hf);
 
 
-  hf = new TGHorizontalFrame(frmMain); {
-    guiDrawTrack_ =  new TGCheckButton(hf, "Draw track");
-    if(drawTrack_) guiDrawTrack_->Toggle();
-    hf->AddFrame(guiDrawTrack_);
-    guiDrawTrack_->Connect("Toggled(Bool_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
-  }
+  hf = new TGHorizontalFrame(frmMain); 
+  guiDrawTrack_ =  new TGCheckButton(hf, "Draw track");
+  if(drawTrack_) guiDrawTrack_->Toggle();
+  hf->AddFrame(guiDrawTrack_);
+  guiDrawTrack_->Connect("Toggled(Bool_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
   frmMain->AddFrame(hf);
 
-  hf = new TGHorizontalFrame(frmMain); {
-    guiDrawRefTrack_ =  new TGCheckButton(hf, "Draw reference track");
-    if(drawRefTrack_) guiDrawRefTrack_->Toggle();
-    hf->AddFrame(guiDrawRefTrack_);
-    guiDrawRefTrack_->Connect("Toggled(Bool_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
-  }
+  hf = new TGHorizontalFrame(frmMain); 
+  guiDrawRefTrack_ =  new TGCheckButton(hf, "Draw reference track");
+  if(drawRefTrack_) guiDrawRefTrack_->Toggle();
+  hf->AddFrame(guiDrawRefTrack_);
+  guiDrawRefTrack_->Connect("Toggled(Bool_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
   frmMain->AddFrame(hf);
 
-  hf = new TGHorizontalFrame(frmMain); {
-    guiDrawErrors_ =  new TGCheckButton(hf, "Draw track errors");
-    if(drawErrors_) guiDrawErrors_->Toggle();
-    hf->AddFrame(guiDrawErrors_);
-    guiDrawErrors_->Connect("Toggled(Bool_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
-  }
+  hf = new TGHorizontalFrame(frmMain); 
+  guiDrawErrors_ =  new TGCheckButton(hf, "Draw track errors");
+  if(drawErrors_) guiDrawErrors_->Toggle();
+  hf->AddFrame(guiDrawErrors_);
+  guiDrawErrors_->Connect("Toggled(Bool_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
   frmMain->AddFrame(hf);
 
-  hf = new TGHorizontalFrame(frmMain); {
-    guiDrawForward_ =  new TGCheckButton(hf, "Draw forward fit");
-    if(drawForward_) guiDrawForward_->Toggle();
-    hf->AddFrame(guiDrawForward_);
-    guiDrawForward_->Connect("Toggled(Bool_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
-  }
+  hf = new TGHorizontalFrame(frmMain); 
+  guiDrawForward_ =  new TGCheckButton(hf, "Draw forward fit");
+  if(drawForward_) guiDrawForward_->Toggle();
+  hf->AddFrame(guiDrawForward_);
+  guiDrawForward_->Connect("Toggled(Bool_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
   frmMain->AddFrame(hf);
 
-  hf = new TGHorizontalFrame(frmMain); {
-    guiDrawBackward_ =  new TGCheckButton(hf, "Draw backward fit");
-    if(drawBackward_) guiDrawBackward_->Toggle();
-    hf->AddFrame(guiDrawBackward_);
-    guiDrawBackward_->Connect("Toggled(Bool_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
-  }
+  hf = new TGHorizontalFrame(frmMain); 
+  guiDrawBackward_ =  new TGCheckButton(hf, "Draw backward fit");
+  if(drawBackward_) guiDrawBackward_->Toggle();
+  hf->AddFrame(guiDrawBackward_);
+  guiDrawBackward_->Connect("Toggled(Bool_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
   frmMain->AddFrame(hf);
 
 
-  hf = new TGHorizontalFrame(frmMain); {
-    guiDrawAutoScale_ =  new TGCheckButton(hf, "Auto-scale errors");
-    if(drawAutoScale_) guiDrawAutoScale_->Toggle();
-    hf->AddFrame(guiDrawAutoScale_);
-    guiDrawAutoScale_->Connect("Toggled(Bool_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
-  }
+  hf = new TGHorizontalFrame(frmMain); 
+  guiDrawAutoScale_ =  new TGCheckButton(hf, "Auto-scale errors");
+  if(drawAutoScale_) guiDrawAutoScale_->Toggle();
+  hf->AddFrame(guiDrawAutoScale_);
+  guiDrawAutoScale_->Connect("Toggled(Bool_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
   frmMain->AddFrame(hf);
 
-  hf = new TGHorizontalFrame(frmMain); {
-    guiDrawScaleMan_ =  new TGCheckButton(hf, "Manually scale errors");
-    if(drawScaleMan_) guiDrawScaleMan_->Toggle();
-    hf->AddFrame(guiDrawScaleMan_);
-    guiDrawScaleMan_->Connect("Toggled(Bool_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
-  }
+  hf = new TGHorizontalFrame(frmMain); 
+  guiDrawScaleMan_ =  new TGCheckButton(hf, "Manually scale errors");
+  if(drawScaleMan_) guiDrawScaleMan_->Toggle();
+  hf->AddFrame(guiDrawScaleMan_);
+  guiDrawScaleMan_->Connect("Toggled(Bool_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
   frmMain->AddFrame(hf);
 
-  hf = new TGHorizontalFrame(frmMain); {
-    guiErrorScale_ = new TGNumberEntry(hf, errorScale_, 6,999, TGNumberFormat::kNESReal,
-                          TGNumberFormat::kNEANonNegative,
-                          TGNumberFormat::kNELLimitMinMax,
-                          1.E-4, 1.E5);
-    hf->AddFrame(guiErrorScale_);
-    guiErrorScale_->Connect("ValueSet(Long_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
-    lbl = new TGLabel(hf, "Error scale");
-    hf->AddFrame(lbl);
-  }
+  hf = new TGHorizontalFrame(frmMain); 
+  guiErrorScale_ = new TGNumberEntry(hf, errorScale_, 6,999, TGNumberFormat::kNESReal,
+				     TGNumberFormat::kNEANonNegative,
+				     TGNumberFormat::kNELLimitMinMax,
+				     1.E-4, 1.E5);
+  hf->AddFrame(guiErrorScale_);
+  guiErrorScale_->Connect("ValueSet(Long_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
+  lbl = new TGLabel(hf, "Error scale");
+  hf->AddFrame(lbl);
   frmMain->AddFrame(hf);
 
 
 
-  hf = new TGHorizontalFrame(frmMain); {
-    lbl = new TGLabel(hf, "\n TrackRep options");
-    hf->AddFrame(lbl);
-  }
+  hf = new TGHorizontalFrame(frmMain); 
+  lbl = new TGLabel(hf, "\n TrackRep options");
+  hf->AddFrame(lbl);
   frmMain->AddFrame(hf);
 
-  hf = new TGHorizontalFrame(frmMain); {
-    guiDrawCardinalRep_ =  new TGCheckButton(hf, "Draw cardinal rep");
-    if(drawCardinalRep_) guiDrawCardinalRep_->Toggle();
-    hf->AddFrame(guiDrawCardinalRep_);
-    guiDrawCardinalRep_->Connect("Toggled(Bool_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
-  }
+  hf = new TGHorizontalFrame(frmMain); 
+  guiDrawCardinalRep_ =  new TGCheckButton(hf, "Draw cardinal rep");
+  if(drawCardinalRep_) guiDrawCardinalRep_->Toggle();
+  hf->AddFrame(guiDrawCardinalRep_);
+  guiDrawCardinalRep_->Connect("Toggled(Bool_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
   frmMain->AddFrame(hf);
 
-  hf = new TGHorizontalFrame(frmMain); {
-    guiRepId_ = new TGNumberEntry(hf, repId_, 6,999, TGNumberFormat::kNESInteger,
-                          TGNumberFormat::kNEANonNegative,
-                          TGNumberFormat::kNELLimitMinMax,
-                          0, 99);
-    hf->AddFrame(guiRepId_);
-    guiRepId_->Connect("ValueSet(Long_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
-    lbl = new TGLabel(hf, "Else draw rep with id");
-    hf->AddFrame(lbl);
-  }
+  hf = new TGHorizontalFrame(frmMain); 
+  guiRepId_ = new TGNumberEntry(hf, repId_, 6,999, TGNumberFormat::kNESInteger,
+				TGNumberFormat::kNEANonNegative,
+				TGNumberFormat::kNELLimitMinMax,
+				0, 99);
+  hf->AddFrame(guiRepId_);
+  guiRepId_->Connect("ValueSet(Long_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
+  lbl = new TGLabel(hf, "Else draw rep with id");
+  hf->AddFrame(lbl);
   frmMain->AddFrame(hf);
 
-  hf = new TGHorizontalFrame(frmMain); {
-    guiDrawAllTracks_ =  new TGCheckButton(hf, "Draw all tracks");
-    if(drawAllTracks_) guiDrawAllTracks_->Toggle();
-    hf->AddFrame(guiDrawAllTracks_);
-    guiDrawAllTracks_->Connect("Toggled(Bool_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
-  }
+  hf = new TGHorizontalFrame(frmMain); 
+  guiDrawAllTracks_ =  new TGCheckButton(hf, "Draw all tracks");
+  if(drawAllTracks_) guiDrawAllTracks_->Toggle();
+  hf->AddFrame(guiDrawAllTracks_);
+  guiDrawAllTracks_->Connect("Toggled(Bool_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
+
   frmMain->AddFrame(hf);
 
-  hf = new TGHorizontalFrame(frmMain); {
-    guiTrackId_ = new TGNumberEntry(hf, trackId_, 6,999, TGNumberFormat::kNESInteger,
-                          TGNumberFormat::kNEANonNegative,
-                          TGNumberFormat::kNELLimitMinMax,
-                          0, 99);
-    hf->AddFrame(guiTrackId_);
-    guiTrackId_->Connect("ValueSet(Long_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
-    lbl = new TGLabel(hf, "Else draw track nr. ");
-    hf->AddFrame(lbl);
-  }
+  hf = new TGHorizontalFrame(frmMain); 
+  guiTrackId_ = new TGNumberEntry(hf, trackId_, 6,999, TGNumberFormat::kNESInteger,
+				  TGNumberFormat::kNEANonNegative,
+				  TGNumberFormat::kNELLimitMinMax,
+				  0, 99);
+  hf->AddFrame(guiTrackId_);
+  guiTrackId_->Connect("ValueSet(Long_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
+  lbl = new TGLabel(hf, "Else draw track nr. ");
+  hf->AddFrame(lbl);
   frmMain->AddFrame(hf);
-
-
 
   frmMain->MapSubwindows();
   frmMain->Resize();
@@ -1405,169 +1399,159 @@ void EventDisplay::makeGui() {
   frmMain2->SetWindowName("XX GUI");
   frmMain2->SetCleanup(kDeepCleanup);
 
-  hf = new TGHorizontalFrame(frmMain2); {
-    // evt number entry
-    lbl = new TGLabel(hf, "Go to event: ");
-    hf->AddFrame(lbl);
-    guiEvent2 = new TGNumberEntry(hf, 0, 9,999, TGNumberFormat::kNESInteger,
-                          TGNumberFormat::kNEANonNegative,
-                          TGNumberFormat::kNELLimitMinMax,
-                          0, 99999);
-    hf->AddFrame(guiEvent2);
-    guiEvent2->Connect("ValueSet(Long_t)", "genfit::EventDisplay", fh, "guiGoto2()");
+  if (navButtons)
+    {
+      hf = new TGHorizontalFrame(frmMain2); 
+      // evt number entry
+      lbl = new TGLabel(hf, "Go to event: ");
+      hf->AddFrame(lbl);
+      guiEvent2 = new TGNumberEntry(hf, 0, 9,999, TGNumberFormat::kNESInteger,
+				    TGNumberFormat::kNEANonNegative,
+				    TGNumberFormat::kNELLimitMinMax,
+				    0, 99999);
+      hf->AddFrame(guiEvent2);
+      guiEvent2->Connect("ValueSet(Long_t)", "genfit::EventDisplay", fh, "guiGoto2()");
+      
+      // redraw button
+      tb = new TGTextButton(hf, "Redraw Event");
+      hf->AddFrame(tb);
+      tb->Connect("Clicked()", "genfit::EventDisplay", fh, "guiGoto()");
+      frmMain2->AddFrame(hf);
+    }
 
-    // redraw button
-    tb = new TGTextButton(hf, "Redraw Event");
-    hf->AddFrame(tb);
-    tb->Connect("Clicked()", "genfit::EventDisplay", fh, "guiGoto()");
-  }
+  hf = new TGHorizontalFrame(frmMain2); 
+  lbl = new TGLabel(hf, "\n Fitting options");
+  hf->AddFrame(lbl);
   frmMain2->AddFrame(hf);
 
-  hf = new TGHorizontalFrame(frmMain2); {
-    lbl = new TGLabel(hf, "\n Fitting options");
-    hf->AddFrame(lbl);
-  }
+  hf = new TGHorizontalFrame(frmMain2); 
+  guiRefit_ =  new TGCheckButton(hf, "Refit");
+  if(refit_) guiRefit_->Toggle();
+  hf->AddFrame(guiRefit_);
+  guiRefit_->Connect("Toggled(Bool_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
   frmMain2->AddFrame(hf);
 
-  hf = new TGHorizontalFrame(frmMain2); {
-    guiRefit_ =  new TGCheckButton(hf, "Refit");
-    if(refit_) guiRefit_->Toggle();
-    hf->AddFrame(guiRefit_);
-    guiRefit_->Connect("Toggled(Bool_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
-  }
+  hf = new TGHorizontalFrame(frmMain2); 
+  guiDebugLvl_ = new TGNumberEntry(hf, debugLvl_, 6,999, TGNumberFormat::kNESInteger,
+				   TGNumberFormat::kNEANonNegative,
+				   TGNumberFormat::kNELLimitMinMax,
+				   0, 999);
+  hf->AddFrame(guiDebugLvl_);
+  guiDebugLvl_->Connect("ValueSet(Long_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
+  lbl = new TGLabel(hf, "debug level");
+  hf->AddFrame(lbl);
   frmMain2->AddFrame(hf);
 
-  hf = new TGHorizontalFrame(frmMain2); {
-    guiDebugLvl_ = new TGNumberEntry(hf, debugLvl_, 6,999, TGNumberFormat::kNESInteger,
-                          TGNumberFormat::kNEANonNegative,
-                          TGNumberFormat::kNELLimitMinMax,
-                          0, 999);
-    hf->AddFrame(guiDebugLvl_);
-    guiDebugLvl_->Connect("ValueSet(Long_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
-    lbl = new TGLabel(hf, "debug level");
-    hf->AddFrame(lbl);
-  }
+  hf = new TGHorizontalFrame(frmMain2); 
+  guiFitterId_ = new TGButtonGroup(hf,"Fitter type:");
+  guiFitterId_->Connect("Clicked(Int_t)","genfit::EventDisplay", fh, "guiSelectFitterId(int)");
+  hf->AddFrame(guiFitterId_, new TGLayoutHints(kLHintsTop));
+  TGRadioButton* fitterId_button = new TGRadioButton(guiFitterId_, "Simple Kalman");
+  new TGRadioButton(guiFitterId_, "Reference Kalman");
+  new TGRadioButton(guiFitterId_, "DAF w/ simple Kalman");
+  new TGRadioButton(guiFitterId_, "DAF w/ reference Kalman");
+  fitterId_button->SetDown(true, false);
+  guiFitterId_->Show();
+
   frmMain2->AddFrame(hf);
 
-  hf = new TGHorizontalFrame(frmMain2); {
-    guiFitterId_ = new TGButtonGroup(hf,"Fitter type:");
-    guiFitterId_->Connect("Clicked(Int_t)","genfit::EventDisplay", fh, "guiSelectFitterId(int)");
-    hf->AddFrame(guiFitterId_, new TGLayoutHints(kLHintsTop));
-      TGRadioButton* fitterId_button = new TGRadioButton(guiFitterId_, "Simple Kalman");
-      new TGRadioButton(guiFitterId_, "Reference Kalman");
-      new TGRadioButton(guiFitterId_, "DAF w/ simple Kalman");
-      new TGRadioButton(guiFitterId_, "DAF w/ reference Kalman");
-      fitterId_button->SetDown(true, false);
-      guiFitterId_->Show();
-  }
+  hf = new TGHorizontalFrame(frmMain2); 
+  guiMmHandling_ = new TGButtonGroup(hf,"Multiple measurement handling in Kalman:");
+  guiMmHandling_->Connect("Clicked(Int_t)","genfit::EventDisplay", fh, "guiSelectMmHandling(int)");
+  hf->AddFrame(guiMmHandling_, new TGLayoutHints(kLHintsTop));
+  TGRadioButton* mmHandling_button = new TGRadioButton(guiMmHandling_, "weighted average");
+  new TGRadioButton(guiMmHandling_, "unweighted average");
+  new TGRadioButton(guiMmHandling_, "weighted, closest to reference");
+  new TGRadioButton(guiMmHandling_, "unweighted, closest to reference");
+  new TGRadioButton(guiMmHandling_, "weighted, closest to prediction");
+  new TGRadioButton(guiMmHandling_, "unweighted, closest to prediction");
+  new TGRadioButton(guiMmHandling_, "weighted, closest to reference for WireMeasurements, weighted average else");
+  new TGRadioButton(guiMmHandling_, "unweighted, closest to reference for WireMeasurements, unweighted average else");
+  new TGRadioButton(guiMmHandling_, "weighted, closest to prediction for WireMeasurements, weighted average else");
+  new TGRadioButton(guiMmHandling_, "unweighted, closest to prediction for WireMeasurements, unweighted average else");
+  mmHandling_button->SetDown(true, false);
+  guiMmHandling_->Show();
   frmMain2->AddFrame(hf);
 
-  hf = new TGHorizontalFrame(frmMain2); {
-    guiMmHandling_ = new TGButtonGroup(hf,"Multiple measurement handling in Kalman:");
-    guiMmHandling_->Connect("Clicked(Int_t)","genfit::EventDisplay", fh, "guiSelectMmHandling(int)");
-    hf->AddFrame(guiMmHandling_, new TGLayoutHints(kLHintsTop));
-      TGRadioButton* mmHandling_button = new TGRadioButton(guiMmHandling_, "weighted average");
-      new TGRadioButton(guiMmHandling_, "unweighted average");
-      new TGRadioButton(guiMmHandling_, "weighted, closest to reference");
-      new TGRadioButton(guiMmHandling_, "unweighted, closest to reference");
-      new TGRadioButton(guiMmHandling_, "weighted, closest to prediction");
-      new TGRadioButton(guiMmHandling_, "unweighted, closest to prediction");
-      new TGRadioButton(guiMmHandling_, "weighted, closest to reference for WireMeasurements, weighted average else");
-      new TGRadioButton(guiMmHandling_, "unweighted, closest to reference for WireMeasurements, unweighted average else");
-      new TGRadioButton(guiMmHandling_, "weighted, closest to prediction for WireMeasurements, weighted average else");
-      new TGRadioButton(guiMmHandling_, "unweighted, closest to prediction for WireMeasurements, unweighted average else");
-      mmHandling_button->SetDown(true, false);
-      guiMmHandling_->Show();
-  }
+  hf = new TGHorizontalFrame(frmMain2); 
+  guiSquareRootFormalism_ =  new TGCheckButton(hf, "Use square root formalism (simple Kalman/simple DAF)");
+  if(squareRootFormalism_) guiSquareRootFormalism_->Toggle();
+  hf->AddFrame(guiSquareRootFormalism_);
+  guiSquareRootFormalism_->Connect("Toggled(Bool_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
   frmMain2->AddFrame(hf);
 
-  hf = new TGHorizontalFrame(frmMain2); {
-    guiSquareRootFormalism_ =  new TGCheckButton(hf, "Use square root formalism (simple Kalman/simple DAF)");
-    if(squareRootFormalism_) guiSquareRootFormalism_->Toggle();
-    hf->AddFrame(guiSquareRootFormalism_);
-    guiSquareRootFormalism_->Connect("Toggled(Bool_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
-  }
+  hf = new TGHorizontalFrame(frmMain2); 
+  guiDPVal_ = new TGNumberEntry(hf, dPVal_, 6,9999, TGNumberFormat::kNESReal,
+				TGNumberFormat::kNEANonNegative,
+				TGNumberFormat::kNELLimitMinMax,
+				0, 999);
+  hf->AddFrame(guiDPVal_);
+  guiDPVal_->Connect("ValueSet(Long_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
+  lbl = new TGLabel(hf, "delta pVal (convergence criterium)");
+  hf->AddFrame(lbl);
   frmMain2->AddFrame(hf);
 
-  hf = new TGHorizontalFrame(frmMain2); {
-    guiDPVal_ = new TGNumberEntry(hf, dPVal_, 6,9999, TGNumberFormat::kNESReal,
-                          TGNumberFormat::kNEANonNegative,
-                          TGNumberFormat::kNELLimitMinMax,
-                          0, 999);
-    hf->AddFrame(guiDPVal_);
-    guiDPVal_->Connect("ValueSet(Long_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
-    lbl = new TGLabel(hf, "delta pVal (convergence criterium)");
-    hf->AddFrame(lbl);
-  }
+  hf = new TGHorizontalFrame(frmMain2); 
+  guiRelChi2_ = new TGNumberEntry(hf, dRelChi2_, 6,9999, TGNumberFormat::kNESReal,
+				  TGNumberFormat::kNEANonNegative,
+				  TGNumberFormat::kNELLimitMinMax,
+				  0, 999);
+  hf->AddFrame(guiRelChi2_);
+  guiRelChi2_->Connect("ValueSet(Long_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
+  lbl = new TGLabel(hf, "rel chi^2 change (non-convergence criterium)");
+  hf->AddFrame(lbl);
   frmMain2->AddFrame(hf);
 
-  hf = new TGHorizontalFrame(frmMain2); {
-    guiRelChi2_ = new TGNumberEntry(hf, dRelChi2_, 6,9999, TGNumberFormat::kNESReal,
-                          TGNumberFormat::kNEANonNegative,
-                          TGNumberFormat::kNELLimitMinMax,
-                          0, 999);
-    hf->AddFrame(guiRelChi2_);
-    guiRelChi2_->Connect("ValueSet(Long_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
-    lbl = new TGLabel(hf, "rel chi^2 change (non-convergence criterium)");
-    hf->AddFrame(lbl);
-  }
+  hf = new TGHorizontalFrame(frmMain2); 
+  guiDChi2Ref_ = new TGNumberEntry(hf, dChi2Ref_, 6,9999, TGNumberFormat::kNESReal,
+				   TGNumberFormat::kNEANonNegative,
+				   TGNumberFormat::kNELLimitMinMax,
+				   0, 999);
+  hf->AddFrame(guiDChi2Ref_);
+  guiDChi2Ref_->Connect("ValueSet(Long_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
+  lbl = new TGLabel(hf, "min chi^2 change for re-calculating reference track (Ref Kalman)");
+  hf->AddFrame(lbl);
   frmMain2->AddFrame(hf);
 
-  hf = new TGHorizontalFrame(frmMain2); {
-    guiDChi2Ref_ = new TGNumberEntry(hf, dChi2Ref_, 6,9999, TGNumberFormat::kNESReal,
-                          TGNumberFormat::kNEANonNegative,
-                          TGNumberFormat::kNELLimitMinMax,
-                          0, 999);
-    hf->AddFrame(guiDChi2Ref_);
-    guiDChi2Ref_->Connect("ValueSet(Long_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
-    lbl = new TGLabel(hf, "min chi^2 change for re-calculating reference track (Ref Kalman)");
-    hf->AddFrame(lbl);
-  }
+  hf = new TGHorizontalFrame(frmMain2); 
+  guiNMinIter_ = new TGNumberEntry(hf, nMinIter_, 6,999, TGNumberFormat::kNESInteger,
+				   TGNumberFormat::kNEANonNegative,
+				   TGNumberFormat::kNELLimitMinMax,
+				   1, 100);
+  hf->AddFrame(guiNMinIter_);
+  guiNMinIter_->Connect("ValueSet(Long_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
+  lbl = new TGLabel(hf, "Minimum nr of iterations");
+  hf->AddFrame(lbl);
   frmMain2->AddFrame(hf);
 
-  hf = new TGHorizontalFrame(frmMain2); {
-    guiNMinIter_ = new TGNumberEntry(hf, nMinIter_, 6,999, TGNumberFormat::kNESInteger,
-                          TGNumberFormat::kNEANonNegative,
-                          TGNumberFormat::kNELLimitMinMax,
-                          1, 100);
-    hf->AddFrame(guiNMinIter_);
-    guiNMinIter_->Connect("ValueSet(Long_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
-    lbl = new TGLabel(hf, "Minimum nr of iterations");
-    hf->AddFrame(lbl);
-  }
+  hf = new TGHorizontalFrame(frmMain2); 
+  guiNMaxIter_ = new TGNumberEntry(hf, nMaxIter_, 6,999, TGNumberFormat::kNESInteger,
+				   TGNumberFormat::kNEANonNegative,
+				   TGNumberFormat::kNELLimitMinMax,
+				   1, 100);
+  hf->AddFrame(guiNMaxIter_);
+  guiNMaxIter_->Connect("ValueSet(Long_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
+  lbl = new TGLabel(hf, "Maximum nr of iterations");
+  hf->AddFrame(lbl);
   frmMain2->AddFrame(hf);
-
-  hf = new TGHorizontalFrame(frmMain2); {
-    guiNMaxIter_ = new TGNumberEntry(hf, nMaxIter_, 6,999, TGNumberFormat::kNESInteger,
-                          TGNumberFormat::kNEANonNegative,
-                          TGNumberFormat::kNELLimitMinMax,
-                          1, 100);
-    hf->AddFrame(guiNMaxIter_);
-    guiNMaxIter_->Connect("ValueSet(Long_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
-    lbl = new TGLabel(hf, "Maximum nr of iterations");
-    hf->AddFrame(lbl);
-  }
-  frmMain2->AddFrame(hf);
-
-  hf = new TGHorizontalFrame(frmMain2); {
-    guiNMaxFailed_ = new TGNumberEntry(hf, nMaxFailed_, 6,999, TGNumberFormat::kNESInteger,
-                          TGNumberFormat::kNEAAnyNumber,
-                          TGNumberFormat::kNELLimitMinMax,
-                          -1, 1000);
-    hf->AddFrame(guiNMaxFailed_);
-    guiNMaxFailed_->Connect("ValueSet(Long_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
-    lbl = new TGLabel(hf, "Maximum nr of failed hits");
-    hf->AddFrame(lbl);
-  }
+  
+  hf = new TGHorizontalFrame(frmMain2); 
+  guiNMaxFailed_ = new TGNumberEntry(hf, nMaxFailed_, 6,999, TGNumberFormat::kNESInteger,
+				     TGNumberFormat::kNEAAnyNumber,
+				     TGNumberFormat::kNELLimitMinMax,
+				     -1, 1000);
+  hf->AddFrame(guiNMaxFailed_);
+  guiNMaxFailed_->Connect("ValueSet(Long_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
+  lbl = new TGLabel(hf, "Maximum nr of failed hits");
+  hf->AddFrame(lbl);
   frmMain2->AddFrame(hf);
 
 
-  hf = new TGHorizontalFrame(frmMain2); {
-    guiResort_ =  new TGCheckButton(hf, "Resort track");
-    if(resort_) guiResort_->Toggle();
-    hf->AddFrame(guiResort_);
-    guiResort_->Connect("Toggled(Bool_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
-  }
+  hf = new TGHorizontalFrame(frmMain2); 
+  guiResort_ =  new TGCheckButton(hf, "Resort track");
+  if(resort_) guiResort_->Toggle();
+  hf->AddFrame(guiResort_);
+  guiResort_->Connect("Toggled(Bool_t)", "genfit::EventDisplay", fh, "guiSetDrawParams()");
   frmMain2->AddFrame(hf);
 
 

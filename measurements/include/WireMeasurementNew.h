@@ -105,7 +105,7 @@ class WireMeasurementNew : public AbsMeasurement {
   double wireEndPoint1_[3]; //! Wire end point 1 (X, Y, Z)
   double wireEndPoint2_[3]; //! Wire end point 2 (X, Y, Z)
   double maxDistance_;
-  double leftRight_;
+  int leftRight_;
 
  public:
 
