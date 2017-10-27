@@ -370,6 +370,8 @@ ADD_GENFIT_TEST( minimalFittingExample2     test/minimalFittingExample/main2.cc)
 ADD_GENFIT_TEST( measurementFactoryExample test/measurementFactoryExample/main.cc)
 ADD_GENFIT_TEST( streamerTest              test/streamerTest/main.cc)
 ADD_GENFIT_TEST( unitTests                 test/unitTests/main.cc)
+#Add file used to fit GEM detectors
+#ADD_GENFIT_TEST( GEMs 										 test/GEMs/GEMFitting.cc)
 if(DEFINED RAVE)
   ADD_GENFIT_TEST( vertexingTest           test/vertexingTest/main.cc)
   ADD_GENFIT_TEST( vertexingTestRead       test/vertexingTest/read.cc)

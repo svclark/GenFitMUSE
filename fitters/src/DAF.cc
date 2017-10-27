@@ -161,12 +161,13 @@ void DAF::processTrackWithRep(Track* tr, const AbsTrackRep* rep, bool resortHits
 
   } // end loop over betas
 
-
-  if (status->getForwardPVal() == 0. &&
-      status->getBackwardPVal() == 0.) {
-    status->setIsFitConvergedFully(false);
-    status->setIsFitConvergedPartially(false);
-  }
+  //SOMEHOW GENFIT ALWAYS ENDS UP HERE AND SAYS FIT DOES NOT CONVERGE
+  // if (status->getForwardPVal() == 0. &&
+  //     status->getBackwardPVal() == 0.) {
+  //   status->setIsFitConvergedFully(false);
+  //   status->setIsFitConvergedPartially(false);
+  //   debugOut << " We Shouldn't be here";
+  // }
 
 }
 

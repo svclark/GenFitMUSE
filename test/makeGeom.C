@@ -1,9 +1,12 @@
+//Modified 7/10/17 by Steven Clark, svclark96@gmail.com
+//Only change was adding line 8 and commenting out the big block and line 78
 void makeGeom()
 {
   //--- Definition of a simple geometry
   //   gSystem->Load("libGeom");
    new TGeoManager("genfitGeom", "GENFIT geometry");
-
+	TGeoManager::Import("museGeometry.gdml");
+/*
 
    unsigned int medInd(0);
    Double_t mPar[10];
@@ -58,7 +61,7 @@ void makeGeom()
      redBullCan->SetLineColor(kRed);
      top->AddNode(redBullCan, 1, gGeoIdentity);
    }
-
+*/
 
    //--- close the geometry
    gGeoManager->CloseGeometry();
@@ -66,6 +69,7 @@ void makeGeom()
    //--- draw the ROOT box
    gGeoManager->SetVisLevel(10);
    //top->Draw("ogl");
+	 gGeoManager->GetTopVolume()->Draw("ogl");
    TFile *outfile = TFile::Open("genfitGeom.root","RECREATE");
    gGeoManager->Write();
    outfile->Close();

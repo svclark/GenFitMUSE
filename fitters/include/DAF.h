@@ -106,7 +106,7 @@ class DAF : public AbsKalmanFitter {
 
   virtual void setMaxFailedHits(int val) {getKalman()->setMaxFailedHits(val);}
 
-  virtual void setDebugLvl(unsigned int lvl = 1) {AbsFitter::setDebugLvl(lvl); if (lvl > 1) getKalman()->setDebugLvl(lvl-1);}
+  virtual void setDebugLvl(unsigned int lvl = 2) {AbsFitter::setDebugLvl(lvl); if (lvl > 1) getKalman()->setDebugLvl(lvl-1);}
 
  private:
 

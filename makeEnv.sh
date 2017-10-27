@@ -1,4 +1,5 @@
 #!/bin/bash
+GENFIT=/home/muse/GenFit
 ENVFILE=env.sh
 if [ -z $GENFIT ]; then
   echo "define the GENFIT env variable before executing this script"

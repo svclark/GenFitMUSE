@@ -67,7 +67,8 @@ EventDisplay* EventDisplay::eventDisplay_ = NULL;
 
 EventDisplay::EventDisplay() :
   errorScale_(1.),
-  drawGeometry_(false),
+  //drawGeometry_(false),
+  drawGeometry_(true),
   drawDetectors_(true),
   drawHits_(true),
   drawErrors_(true),

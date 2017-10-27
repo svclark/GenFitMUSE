@@ -95,7 +95,9 @@ void FitStatus::Print(const Option_t*) const
     else if (isFitConvergedPartially_)
       printOut << " fit has converged partially,";
     else
+    {
       printOut << " fit has NOT converged,";
+    }
     printOut << " " << nFailedPoints_ << " TrackPoints could not be processed,";
     if (trackHasChanged_) printOut << " track has changed since the fit,";
     printOut << " fitted charge = " << charge_ << ", ";
